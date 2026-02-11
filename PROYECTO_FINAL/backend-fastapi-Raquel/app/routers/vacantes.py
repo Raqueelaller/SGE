@@ -30,9 +30,11 @@ def listar_vacantes(
             e.entidad AS entidad,
             c.ciclo AS ciclo,
 
-            COUNT(vxa.id_alumno) AS num_alumnos,
+           COUNT(vxa.id_alumno) AS alumnos_asignados,
 
-            GROUP_CONCAT(CONCAT(a.nombre, ' ', a.apellidos) ORDER BY a.apellidos SEPARATOR ', ') AS listado_alumnos
+            (v.num_vacantes - COUNT(vxa.id_alumno)) AS vacantes_disponibles,
+
+            GROUP_CONCAT(CONCAT(a.nombre, ' ', a.apellidos) ORDER BY a.apellidos SEPARATOR ', ') AS lista_alumnos
         FROM sgi_vacantes v
         JOIN sgi_entidades e ON e.id_entidad = v.id_entidad
         JOIN sgi_ciclos c ON c.id_ciclo = v.id_ciclo
@@ -48,8 +50,8 @@ def listar_vacantes(
     for r in rows:
         d = dict(r)
         # si no hay alumnos, GROUP_CONCAT devuelve None -> lo dejamos en "" para el grid
-        if d["listado_alumnos"] is None:
-            d["listado_alumnos"] = ""
+        if d["lista_alumnos"] is None:
+            d["lista_alumnos"] = ""
         data.append(d)
 
     return {"ok": True, "message": "Listado de vacantes", "data": data}
@@ -79,6 +81,39 @@ def crear_vacante(
         }
 
     return {"ok": True, "message": "Vacante creada", "data": None}
+
+@router.get("/{id_vacante}/alumnos")
+def alumnos_asignados(
+    id_vacante: int,
+    db: Session = Depends(get_db),
+    user=Depends(require_token),
+):
+    # 1) comprobar que la vacante existe
+    existe = db.execute(text("""
+        SELECT id_vacante
+        FROM sgi_vacantes
+        WHERE id_vacante = :id
+        LIMIT 1
+    """), {"id": id_vacante}).scalar()
+
+    if not existe:
+        raise HTTPException(status_code=404, detail="Vacante no encontrada")
+
+    # 2) alumnos asignados a esa vacante
+    rows = db.execute(text("""
+        SELECT
+            a.id_alumno,
+            a.nombre,
+            a.apellidos,
+            a.nif_nie
+        FROM sgi_vacantes_x_alumnos vxa
+        JOIN sgi_alumnos a ON a.id_alumno = vxa.id_alumno
+        WHERE vxa.id_vacante = :id_vacante
+        ORDER BY a.apellidos, a.nombre
+    """), {"id_vacante": id_vacante}).mappings().all()
+
+    data = [dict(r) for r in rows]
+    return {"ok": True, "message": "Alumnos asignados", "data": data}
 
 
 @router.get("/{id_vacante}/alumnos-disponibles")
@@ -115,6 +150,33 @@ def alumnos_disponibles(
 
     data = [dict(r) for r in rows]
     return {"ok": True, "message": "Alumnos disponibles", "data": data}
+
+@router.get("/{id_vacante}")
+def get_vacante_by_id(
+    id_vacante: int,
+    db: Session = Depends(get_db),
+    user=Depends(require_token),
+):
+    row = db.execute(text("""
+        SELECT
+            v.id_vacante,
+            v.id_entidad,
+            v.id_ciclo,
+            v.curso,
+            v.num_vacantes,
+            v.observaciones,
+            COUNT(vxa.id_alumno) AS alumnos_asignados
+        FROM sgi_vacantes v
+        LEFT JOIN sgi_vacantes_x_alumnos vxa ON vxa.id_vacante = v.id_vacante
+        WHERE v.id_vacante = :id
+        GROUP BY v.id_vacante, v.id_entidad, v.id_ciclo, v.curso, v.num_vacantes, v.observaciones
+        LIMIT 1
+    """), {"id": id_vacante}).mappings().first()
+
+    if not row:
+        raise HTTPException(status_code=404, detail="Vacante no encontrada")
+
+    return {"ok": True, "message": None, "data": dict(row)}
 
 
 @router.post("/{id_vacante}/alumnos/{id_alumno}")

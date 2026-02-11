@@ -5,6 +5,7 @@ from app.routers.health import router as health_router
 from app.routers.private_test import router as private_router
 from app.routers.alumnos import router as alumnos_router
 from app.routers.vacantes import router as vacantes_router
+from app.routers import catalogos
 
 app = FastAPI(title="SGE API (FastAPI)")
 
@@ -27,3 +28,4 @@ app.include_router(health_router)
 app.include_router(private_router)
 app.include_router(alumnos_router)
 app.include_router(vacantes_router)
+app.include_router(catalogos.router)
