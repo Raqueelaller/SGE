@@ -10,7 +10,7 @@ class AlumnoCreate(BaseModel):
     fecha_nacimiento: date
     id_entidad_centro: int
     id_ciclo: int
-    curso: int = Field(ge=1, le=2)  # en FP suelen ser 1 o 2
+    curso: int = Field(ge=1, le=2)  
     telefono: str = Field(min_length=3, max_length=20)
 
     direccion: Optional[str] = Field(default=None, max_length=150)
@@ -21,5 +21,5 @@ class AlumnoCreate(BaseModel):
 
 class AlumnoUpdate(AlumnoCreate):
     # de momento reutilizamos los mismos campos obligatorios que create
-    # (luego si quieres hacemos update parcial con Optional)
+    
     pass
